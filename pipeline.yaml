@@ -1,0 +1,59 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: deploy-pipeline
+  namespace: my-demo-project
+spec:
+  tasks:
+    - name: git-clone
+      params:
+        - name: url
+          value: 'https://github.com/mikecroft/quarkus-hello-world.git'
+        - name: revision
+          value: master
+        - name: submodules
+          value: 'true'
+        - name: depth
+          value: '1'
+        - name: sslVerify
+          value: 'true'
+        - name: crtFileName
+          value: ca-bundle.crt
+        - name: deleteExisting
+          value: 'true'
+        - name: verbose
+          value: 'true'
+        - name: gitInitImage
+          value: 'registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:84c7b5115270e63701e8b8768b9d0908c91a88d22ddeb1a11e0411f648abbb26'
+        - name: userHome
+          value: /home/git
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: deploy
+    - name: helm-upgrade-from-source
+      params:
+        - name: charts_dir
+          value: ./helm
+        - name: release_version
+          value: v1.0.0
+        - name: release_name
+          value: helm-release
+        - name: values_file
+          value: values.yaml
+        - name: helm_image
+          value: 'docker.io/lachlanevenson/k8s-helm:v3.10.2'
+        - name: upgrade_extra_params
+          value: '--dependency-update'
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: ClusterTask
+        name: helm-upgrade-from-source
+      workspaces:
+        - name: source
+          workspace: deploy
+  workspaces:
+    - name: deploy
